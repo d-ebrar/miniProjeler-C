@@ -2,29 +2,33 @@
 #include <string.h>
 #include <ctype.h>
 
-void is_palindrom(char *string);
+void is_palindrom(char *start_ptr);
 void standardize_to_lower(char *s);
 
 int main() {
-    char word[100];
-    int len = sizeof(word);
+    char input_text[100];
+    char *newline_ptr;
+    int len = sizeof(input_text);
 
-    printf("Lütfen bir metin giriniz (Max %d karakter):\n", strlen(word));
+    printf("Please enter a text (Max 99 characters):\n");
 
     while (1) {
-        fgets(word, len, stdin);
-        if (len> 0 && word[len - 1] == '\n') {
-            word[len - 1] = '\0';
-            break;
-        } 
+        fgets(input_text, len, stdin);
+        if (input_text != NULL) {
+            newline_ptr = strchr(input_text, '\n');
+            if (newline_ptr != NULL) {
+                *newline_ptr = '\0';
+            }
+            break; 
+        }
         else {
-            printf("Siniri astiniz! Tekrar deneyin (Max %d karakter):\n", len);
+            printf("You've exceeded the limit! Try again (Max 99 characters):\n");
         }
     }
     
-    standardize_to_lower(word);
+    standardize_to_lower(input_text);
 
-    is_palindrom(word, len);
+    is_palindrom(input_text);
 
     return 0;
 }
@@ -32,25 +36,27 @@ int main() {
 void standardize_to_lower(char *s) {
     int i;
 
-    for (i = 0; s[i] != '\0'; i++) {
-        s[i] = (char)tolower((unsigned char)s[i]); 
+    while (*s != '\0') {
+        *s = (char)tolower((unsigned char)*s);
+        s++; 
     }
 }
 
-void is_palindrom(char *string, int length) {
+void is_palindrom(char *start_ptr) {
     int i;
+    char *original_ptr = start_ptr;
+    char *end_ptr = start_ptr + strlen(start_ptr) - 1;
 
-    for (i = 0; i < length/2; i++) {
-
-        if (string[i] != string[length-i-1]) {
-
-            printf("%s, kelimeniz Palindrom değilir.\n", string);
-
-            return;
+    while (start_ptr < end_ptr) {
+        if (*start_ptr != *end_ptr) {
+            printf("The text \"%s\" is NOT a Palindrome.\n", original_ptr);
+            return ;
         }
+        start_ptr++;
+        end_ptr--;
     }
 
-    printf("%s, kelimeniz Palindrom'dur.\n", string);
+    printf("The text \"%s\" is a Palindrome.\n", original_ptr);
 
     return;
 }
