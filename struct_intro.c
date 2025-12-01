@@ -69,8 +69,8 @@ int main() {
     printf("Price: $%.2f\n\n", b1.price);
 
     printf("--- Book 2 Information ---\n");
-    printf("Title: %s", b2.title); 
-    printf("Author: %s", b2.author);
+    printf("Title: %s\n", b2.title); 
+    printf("Author: %s\n", b2.author);
     printf("Publication year: %d/%s/%d\n", b2.pub_date.day, b2.pub_date.month, b2.pub_date.year);
     printf("Price: $%.2f\n", b2.price);
 
