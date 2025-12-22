@@ -2,13 +2,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define DB_VERSION 1
+#define DB_SIGNATURE "PHBK"
+#define MAX_NAME 50
+#define MAX_PHONE 20
+
 typedef struct {
-    char name[50];
-    char phone[15];
+    char signature[5];
+    int version;
+    int record_count;
+} FileHeader;
+
+typedef struct {
+    char name[MAX_NAME];
+    char phone[MAX_PHONE];
 } Person;
 
 Person *directory = NULL;
-int count = 0;
+FileHeader header;
 int capacity = 2;
 
 void load_data();
@@ -18,20 +29,24 @@ void print_directory();
 void get_safe_string(char *buffer, int size);
 
 int main() {
+    memset(&header, 0, sizeof(FileHeader));
+
+    strcpy(header.signature, DB_SIGNATURE);
+    header.version = DB_VERSION;
+    header.record_count = 0;
+
     load_data();
 
     int choice;
     while (1) {
-        printf("\nBINARY PHONEBOOK (%d records)\n", count);
-        printf("1. Add Person\n");
-        printf("2. List Directory\n");
-        printf("3. Save & Exit\n");
-        printf("Select an option: ");
+        printf("\nPHONEBOOK v%d (%d records)\n", header.version, header.record_count);
+        printf("1. Add Person\n2. List Directory\n3. Save & Exit\nSelect an option:");
         
+        int c;
         if (scanf("%d", &choice) != 1) {
-            while(getchar() != '\n'); continue;
+            while ((c = getchar()) != '\n' && c != EOF); continue;
         }
-        while(getchar() != '\n');
+        while ((c = getchar()) != '\n' && c != EOF);
 
         if (choice == 1) {
             add_person();
@@ -49,7 +64,6 @@ int main() {
         free(directory);
         directory = NULL;
     }
-
     return 0;
 }
 
@@ -57,7 +71,7 @@ void load_data() {
     FILE *file = fopen("phonebook.bin", "rb");
     
     if (file == NULL) {
-        printf("No existing database found. Creating new one.\n");
+        printf("No database found. Initializing empty directory.\n");
         directory = (Person *)calloc(capacity, sizeof(Person));
 
         if (directory == NULL) {
@@ -66,19 +80,31 @@ void load_data() {
         return;
     }
 
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    rewind(file);
+    FileHeader temp_header;
 
-    count = file_size / sizeof(Person);
-    if (count > 0) {
-        capacity = 2 * count;
-    }
-    else {
-        capacity = 2;
+    if (fread(&temp_header, sizeof(FileHeader), 1, file) != 1) {
+        printf("ERROR: Could not read file header!\n");
+        fclose(file);
+        exit(1);
     }
 
-    directory = (Person *)malloc(capacity * sizeof(Person));
+    if (memcmp(temp_header.signature, DB_SIGNATURE, 4) != 0) {
+        printf("ERROR: File corrupted or invalid format!\n");
+        fclose(file);
+        exit(1);
+    }
+
+    if (temp_header.version != DB_VERSION) {
+        printf("ERROR: Version mismatch! File is v%d, App is v%d.\n", temp_header.version, DB_VERSION);
+        fclose(file);
+        exit(1);
+    }
+
+    header = temp_header;
+
+    capacity = (header.record_count > 0) ? header.record_count * 2 : 2;
+
+    directory = (Person *)calloc(capacity, sizeof(Person));
 
     if (directory == NULL) {
         printf("Critical Error: Could not allocate memory during load!\n");
@@ -86,14 +112,16 @@ void load_data() {
         exit(1);
     }
 
-    if (count > 0) {
-        size_t read_count = fread(directory, sizeof(Person), count, file);
-        if (read_count != (size_t)count) {
-            printf("Warning: File might be corrupted. Expected %d records, read %zu.\n", count, read_count);
-            count = (int)read_count;
-            }
-            printf("%d records loaded from binary file.\n", count);
+    if (header.record_count > 0) {
+        size_t read_count = fread(directory, sizeof(Person), header.record_count, file);
+
+        if (read_count != (size_t)header.record_count) {
+            printf("Warning: File might be corrupted. Expected %d records, read %zu.\n", header.record_count, read_count);
+            header.record_count = (int)read_count;
         }
+
+        printf("%d records loaded successfully.\n", header.record_count);
+    }
 
     fclose(file);
 }
@@ -106,20 +134,21 @@ void save_data() {
         return;
     }
 
-    size_t written = fwrite(directory, sizeof(Person), count, file);
+    fwrite(&header, sizeof(FileHeader), 1, file);
 
-    if (written != (size_t)count) {
-        printf("Error: Only %zu of %d records were saved!\n", written, count);
+    size_t written = fwrite(directory, sizeof(Person), header.record_count, file);
+
+    if (written != (size_t)header.record_count) {
+        printf("Error: Only %zu of %d records were saved!\n", written, header.record_count);
     } else {
-        printf("Data saved successfully to phonebook.bin (Total: %d records)\n", count);
+        printf("Data saved successfully to phonebook.bin (Total: %d records)\n", header.record_count);
     }
-
 
     fclose(file);
 }
 
 void add_person() {
-    if (count == capacity) {
+    if (header.record_count == capacity) {
         
         Person *temp = (Person *)realloc(directory, capacity * 2 * sizeof(Person));
 
@@ -129,33 +158,47 @@ void add_person() {
         }
         
         directory = temp;
+
+        memset(directory + capacity, 0, capacity * sizeof(Person));
+        
         capacity *= 2;
 
         printf("Memory expanded to %d\n", capacity);
     }
 
     printf("Name: ");
-    get_safe_string(directory[count].name, 50);
+    get_safe_string(directory[header.record_count].name, MAX_NAME);
 
     printf("Phone: ");
-    get_safe_string(directory[count].phone, 15);
+    get_safe_string(directory[header.record_count].phone, MAX_PHONE);
 
-    count++;
+    header.record_count++;
     printf("Record added.\n");
 }
 
 void print_directory() {
-    if (count == 0) {
+    int i;
+
+    if (header.record_count == 0) {
         printf("Directory is empty.\n");
         return;
     }
-    for (int i = 0; i < count; i++) {
+    for (i = 0; i < header.record_count; i++) {
         printf("#%d: %s - %s\n", i+1, directory[i].name, directory[i].phone);
     }
 }
 
 void get_safe_string(char *buffer, int size) {
-    fgets(buffer, size, stdin);
-    char *p = strchr(buffer, '\n');
-    if (p) *p = 0;
+    if (fgets(buffer, size, stdin) != NULL) {
+        
+        char *p = strchr(buffer, '\n');
+        
+        if (p != NULL) {
+            *p = '\0';
+        }
+        else {
+            int c;
+            while ((c = getchar()) != '\n' && c != EOF);
+        }
+    }
 }
